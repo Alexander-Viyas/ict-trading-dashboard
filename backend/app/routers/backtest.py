@@ -18,14 +18,18 @@ async def run_backtest(params: BacktestParams):
     except FileNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
 
-    # Filter by date if provided
-    if params.start_date:
+    # Filter by date if provided (explicit None check)
+    if params.start_date is not None:
         df = df[df["time"] >= params.start_date]
-    if params.end_date:
+    if params.end_date is not None:
         df = df[df["time"] <= params.end_date]
 
-    if len(df) < 50:
-        raise HTTPException(status_code=400, detail="Not enough data points after filtering.")
+    if len(df) < 20:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Not enough data points after filtering. Loaded {len(df)} rows from {params.csv_path}. "
+                   f"Need at least 20 rows. Check your date range or CSV file."
+        )
 
     engine = BacktestEngine(df, params)
     result = engine.run()
@@ -92,9 +96,9 @@ async def run_mtf_analysis(params: BacktestParams):
     except FileNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
 
-    if params.start_date:
+    if params.start_date is not None:
         df = df[df["time"] >= params.start_date]
-    if params.end_date:
+    if params.end_date is not None:
         df = df[df["time"] <= params.end_date]
 
     mtf = MultiTimeframeAnalyzer(

@@ -29,6 +29,9 @@ class BacktestParams(BaseModel):
     initial_balance: float = 10000.0
     risk_per_trade: float = 0.01
     csv_path: Optional[str] = None
+    killzones: Optional[List[str]] = None
+
+    model_config = {"extra": "ignore"}
 
 
 class TradeRecord(BaseModel):
