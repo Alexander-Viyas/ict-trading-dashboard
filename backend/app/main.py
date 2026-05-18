@@ -4,7 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.db.database import init_db
 from app.services.mt5_bridge import mt5_bridge
-from app.routers import data, backtest, journal, ai
+from app.routers import data, backtest, journal, ai, patterns
 
 
 @asynccontextmanager
@@ -18,8 +18,8 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="ICT Trading Dashboard API",
-    description="Hybrid MT5 + CSV backtesting engine with AI insights",
-    version="1.0.0",
+    description="Hybrid MT5 + CSV backtesting engine with pattern recognition",
+    version="2.0.0",
     lifespan=lifespan,
 )
 
@@ -35,6 +35,7 @@ app.include_router(data.router)
 app.include_router(backtest.router)
 app.include_router(journal.router)
 app.include_router(ai.router)
+app.include_router(patterns.router)
 
 
 @app.get("/health")

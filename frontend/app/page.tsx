@@ -1,72 +1,64 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import BacktestPanel from "@/components/BacktestPanel";
 import JournalPanel from "@/components/JournalPanel";
 import AIInsightPanel from "@/components/AIInsightPanel";
-import { BarChart3, BookOpen, Sparkles } from "lucide-react";
-import { BacktestResult, JournalEntry, getJournalEntries } from "@/lib/api";
+import PatternLibrary from "@/components/PatternLibrary";
+import ReplayPlayer from "@/components/ReplayPlayer";
+import { BacktestResult } from "@/lib/api";
 
-type Tab = "backtest" | "journal" | "ai";
-
-export default function Dashboard() {
-  const [activeTab, setActiveTab] = useState<Tab>("backtest");
-  const [journalEntries, setJournalEntries] = useState<JournalEntry[]>([]);
-  const [backtestResult, setBacktestResult] = useState<BacktestResult | null>(null);
-
-  useEffect(() => {
-    getJournalEntries().then(setJournalEntries);
-  }, []);
-
-  const refreshJournal = async () => {
-    const entries = await getJournalEntries();
-    setJournalEntries(entries);
-  };
+export default function Home() {
+  const [activeTab, setActiveTab] = useState("backtest");
+  const [lastResult, setLastResult] = useState<BacktestResult | null>(null);
 
   const tabs = [
-    { id: "backtest" as Tab, label: "Backtest", icon: BarChart3 },
-    { id: "journal" as Tab, label: "Journal", icon: BookOpen },
-    { id: "ai" as Tab, label: "AI Insight", icon: Sparkles },
+    { id: "backtest", label: "Backtest", icon: "📊" },
+    { id: "replay", label: "Replay", icon: "▶️" },
+    { id: "patterns", label: "Patterns", icon: "🔍" },
+    { id: "journal", label: "Journal", icon: "📝" },
+    { id: "live", label: "Live", icon: "🔴" },
+    { id: "ai", label: "AI", icon: "🤖" },
   ];
 
   return (
-    <div className="min-h-screen bg-ict-dark text-slate-200">
-      <header className="border-b border-slate-800 bg-ict-panel/50 backdrop-blur sticky top-0 z-10">
-        <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
-          <div>
-            <h1 className="text-xl font-bold text-white tracking-tight">ICT Trading Dashboard</h1>
-            <p className="text-xs text-slate-500">Hybrid MT5 + CSV Backtesting Engine</p>
-          </div>
-          <nav className="flex gap-1 bg-slate-800/50 rounded-lg p-1">
-            {tabs.map((tab) => {
-              const Icon = tab.icon;
-              return (
-                <button
-                  key={tab.id}
-                  onClick={() => setActiveTab(tab.id)}
-                  className={`flex items-center gap-2 px-3 py-1.5 rounded text-sm font-medium transition ${
-                    activeTab === tab.id
-                      ? "bg-ict-accent text-slate-900"
-                      : "text-slate-400 hover:text-slate-200 hover:bg-slate-700"
-                  }`}
-                >
-                  <Icon className="w-4 h-4" />
-                  {tab.label}
-                </button>
-              );
-            })}
-          </nav>
-        </div>
+    <div className="min-h-screen bg-slate-950 text-slate-200 p-4">
+      <header className="mb-6">
+        <h1 className="text-2xl font-bold text-sky-400">ICT Trading Dashboard</h1>
+        <p className="text-sm text-slate-500">Pattern Recognition · Visual Replay · Smart Money Concepts</p>
       </header>
 
-      <main className="max-w-7xl mx-auto px-4 py-6">
-        {activeTab === "backtest" && (
-          <BacktestPanel onResult={setBacktestResult} />
+      <nav className="flex flex-wrap gap-2 mb-6 border-b border-slate-800 pb-2">
+        {tabs.map((tab) => (
+          <button
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id)}
+            className={`px-4 py-2 rounded-t-lg text-sm font-medium transition ${
+              activeTab === tab.id
+                ? "bg-slate-800 text-sky-400 border-b-2 border-sky-400"
+                : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/50"
+            }`}
+          >
+            <span className="mr-1">{tab.icon}</span>
+            {tab.label}
+          </button>
+        ))}
+      </nav>
+
+      <main>
+        {activeTab === "backtest" && <BacktestPanel onResult={(r) => setLastResult(r)} />}
+        {activeTab === "replay" && <ReplayPlayer />}
+        {activeTab === "patterns" && <PatternLibrary />}
+        {activeTab === "journal" && <JournalPanel />}
+        {activeTab === "live" && (
+          <div className="bg-slate-800/50 rounded-lg p-8 border border-slate-700 text-center">
+            <div className="text-4xl mb-2">🔴</div>
+            <div className="text-slate-300 font-semibold">Live Market Feed</div>
+            <div className="text-sm text-slate-500 mt-2">Connect MT5 via ZeroMQ to stream live ticks.</div>
+            <div className="text-xs text-slate-600 mt-1">Port: 15555 (PULL) / 15556 (SUB)</div>
+          </div>
         )}
-        {activeTab === "journal" && <JournalPanel onChange={refreshJournal} />}
-        {activeTab === "ai" && (
-          <AIInsightPanel entries={journalEntries} result={backtestResult} />
-        )}
+        {activeTab === "ai" && <AIInsightPanel />}
       </main>
     </div>
   );

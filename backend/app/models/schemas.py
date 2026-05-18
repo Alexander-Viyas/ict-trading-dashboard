@@ -84,3 +84,63 @@ class AIInsightResponse(BaseModel):
     insight: str
     model: str
     generated_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+class Pattern(BaseModel):
+    id: Optional[int] = None
+    pattern_type: str
+    direction: Literal["bullish", "bearish", "neutral"] = "neutral"
+    confidence: int = 0
+    time: Optional[datetime] = None
+    symbol: Optional[str] = None
+    timeframe: Optional[str] = None
+    price_top: float = 0.0
+    price_bottom: float = 0.0
+    price_entry: float = 0.0
+    price_sl: float = 0.0
+    price_tp: float = 0.0
+    candle_start_idx: int = 0
+    candle_end_idx: int = 0
+    notes: Optional[str] = None
+    tags: List[str] = []
+    trade_id: Optional[int] = None
+    outcome: Optional[str] = None
+
+
+class ReplayEvent(BaseModel):
+    id: Optional[int] = None
+    backtest_run_id: int
+    event_type: str  # "candle", "pattern", "trade_entry", "trade_exit"
+    candle_idx: int
+    timestamp: Optional[datetime] = None
+    data: dict = {}
+
+
+class BacktestRun(BaseModel):
+    id: Optional[int] = None
+    strategy_name: str
+    symbol: str
+    timeframe: str
+    start_date: Optional[datetime] = None
+    end_date: Optional[datetime] = None
+    initial_balance: float
+    total_return: float = 0.0
+    win_rate: float = 0.0
+    sharpe_ratio: float = 0.0
+    max_drawdown: float = 0.0
+    total_trades: int = 0
+    created_at: Optional[datetime] = None
+
+
+class PatternFilterRequest(BaseModel):
+    symbol: Optional[str] = None
+    timeframe: Optional[str] = None
+    pattern_types: Optional[List[str]] = None
+    directions: Optional[List[str]] = None
+    min_confidence: int = 0
+    start_date: Optional[datetime] = None
+    end_date: Optional[datetime] = None
+    killzones: Optional[List[str]] = None
+    tags: Optional[List[str]] = None
+    limit: int = 100
+    offset: int = 0
