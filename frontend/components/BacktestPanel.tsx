@@ -18,7 +18,7 @@ export default function BacktestPanel({ onResult }: BacktestPanelProps) {
     timeframe: "M15",
     initial_balance: 10000,
     risk_per_trade: 0.01,
-    csv_path: "",
+    csv_path: "sample/eurusd_m15.csv",
   });
   const [result, setResult] = useState<BacktestResult | null>(null);
   const [csvFiles, setCsvFiles] = useState<string[]>([]);
