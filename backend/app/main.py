@@ -4,22 +4,26 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.db.database import init_db
 from app.services.mt5_bridge import mt5_bridge
-from app.routers import data, backtest, journal, ai, patterns
+from app.routers import data, backtest, journal, ai, patterns, live
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await init_db()
-    # Optional: auto-connect MT5 bridge if running
-    # await mt5_bridge.connect()
+    # Auto-connect MT5 bridge on startup
+    try:
+        await mt5_bridge.connect()
+        print("[MT5] Bridge auto-connected")
+    except Exception as e:
+        print(f"[MT5] Auto-connect failed (MT5 may not be running): {e}")
     yield
-    # await mt5_bridge.close()
+    await mt5_bridge.close()
 
 
 app = FastAPI(
     title="ICT Trading Dashboard API",
-    description="Hybrid MT5 + CSV backtesting engine with pattern recognition",
-    version="2.0.0",
+    description="Hybrid MT5 + CSV backtesting engine with pattern recognition + live confluence",
+    version="2.1.0",
     lifespan=lifespan,
 )
 
@@ -36,6 +40,7 @@ app.include_router(backtest.router)
 app.include_router(journal.router)
 app.include_router(ai.router)
 app.include_router(patterns.router)
+app.include_router(live.router)
 
 
 @app.get("/health")

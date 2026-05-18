@@ -1,11 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { runBacktest, listCsvFiles, BacktestResult, BacktestParams } from "@/lib/api";
+import { runBacktest, runMtfAnalysis, listCsvFiles, BacktestResult, BacktestParams, TradeRecord } from "@/lib/api";
 import PriceChart from "./PriceChart";
 import EquityChart from "./EquityChart";
 import StatCard from "./StatCard";
-import { Play, Loader2 } from "lucide-react";
+import { Play, Loader2, Layers } from "lucide-react";
 
 interface BacktestPanelProps {
   onResult?: (result: BacktestResult) => void;
@@ -29,6 +29,8 @@ export default function BacktestPanel({ onResult }: BacktestPanelProps) {
   const [error, setError] = useState("");
   const [ohlcvData, setOhlcvData] = useState<any[]>([]);
   const [tradeDetails, setTradeDetails] = useState<TradeRecord[]>([]);
+  const [mtfResult, setMtfResult] = useState<any>(null);
+  const [mtfLoading, setMtfLoading] = useState(false);
 
   const loadCsvList = async () => {
     const files = await listCsvFiles();
@@ -58,6 +60,18 @@ export default function BacktestPanel({ onResult }: BacktestPanelProps) {
       ...params,
       killzones: current.includes(kz) ? current.filter((x) => x !== kz) : [...current, kz],
     });
+  };
+
+  const handleMtf = async () => {
+    setMtfLoading(true);
+    try {
+      const res = await runMtfAnalysis(params);
+      setMtfResult(res);
+    } catch (err: any) {
+      setError(err?.response?.data?.detail || "MTF analysis failed.");
+    } finally {
+      setMtfLoading(false);
+    }
   };
 
   return (
@@ -175,9 +189,64 @@ export default function BacktestPanel({ onResult }: BacktestPanelProps) {
             {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
             Run Backtest
           </button>
+          <button
+            onClick={handleMtf}
+            disabled={mtfLoading}
+            className="flex items-center gap-2 bg-slate-700 text-slate-200 px-4 py-2 rounded font-semibold hover:bg-slate-600 transition disabled:opacity-50"
+          >
+            {mtfLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Layers className="w-4 h-4" />}
+            MTF Analysis
+          </button>
         </div>
         {error && <div className="mt-2 text-red-400 text-sm">{error}</div>}
       </div>
+
+      {/* MTF Results */}
+      {mtfResult && (
+        <div className="bg-slate-800/50 rounded-lg p-4 border border-slate-700">
+          <h3 className="text-sm font-semibold text-sky-400 mb-2 flex items-center gap-2">
+            <Layers className="w-4 h-4" />
+            Multi-Timeframe Confluence ({mtfResult.total_confluence_patterns} patterns)
+          </h3>
+          <div className="space-y-2 max-h-[300px] overflow-y-auto">
+            {mtfResult.patterns.map((p: any, i: number) => (
+              <div key={i} className={`p-2 rounded border text-xs ${
+                p.alignment === "strong"
+                  ? "bg-emerald-500/10 border-emerald-500/30"
+                  : p.alignment === "conflict"
+                  ? "bg-rose-500/10 border-rose-500/30"
+                  : "bg-slate-700/30 border-slate-600/30"
+              }`}>
+                <div className="flex items-center justify-between">
+                  <span className="font-semibold">{p.base.pattern_type.replace(/_/g, " ")}</span>
+                  <div className="flex items-center gap-2">
+                    <span className={`px-1.5 py-0.5 rounded text-[10px] ${
+                      p.base.direction === "bullish" ? "bg-emerald-400/20 text-emerald-400" : "bg-rose-400/20 text-rose-400"
+                    }`}>
+                      {p.base.direction.toUpperCase()}
+                    </span>
+                    <span className="font-mono text-sky-400">{p.confluence_score}%</span>
+                  </div>
+                </div>
+                <div className="mt-1 text-slate-400">{p.summary}</div>
+                {p.higher_timeframes.length > 0 && (
+                  <div className="mt-1 flex flex-wrap gap-1">
+                    {p.higher_timeframes.map((h: any, j: number) => (
+                      <span key={j} className={`px-1.5 py-0.5 rounded text-[10px] border ${
+                        h.aligned
+                          ? "border-emerald-400/30 text-emerald-400"
+                          : "border-rose-400/30 text-rose-400"
+                      }`}>
+                        {h.timeframe}: {h.pattern_type} ({h.confidence}%)
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {result && (
         <>

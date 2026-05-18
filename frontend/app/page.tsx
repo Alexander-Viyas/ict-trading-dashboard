@@ -6,6 +6,7 @@ import JournalPanel from "@/components/JournalPanel";
 import AIInsightPanel from "@/components/AIInsightPanel";
 import PatternLibrary from "@/components/PatternLibrary";
 import ReplayPlayer from "@/components/ReplayPlayer";
+import LivePanel from "@/components/LivePanel";
 import { BacktestResult } from "@/lib/api";
 
 export default function Home() {
@@ -25,7 +26,7 @@ export default function Home() {
     <div className="min-h-screen bg-slate-950 text-slate-200 p-4">
       <header className="mb-6">
         <h1 className="text-2xl font-bold text-sky-400">ICT Trading Dashboard</h1>
-        <p className="text-sm text-slate-500">Pattern Recognition · Visual Replay · Smart Money Concepts</p>
+        <p className="text-sm text-slate-500">Pattern Recognition · Visual Replay · Smart Money Concepts · Live Confluence</p>
       </header>
 
       <nav className="flex flex-wrap gap-2 mb-6 border-b border-slate-800 pb-2">
@@ -50,14 +51,7 @@ export default function Home() {
         {activeTab === "replay" && <ReplayPlayer />}
         {activeTab === "patterns" && <PatternLibrary />}
         {activeTab === "journal" && <JournalPanel />}
-        {activeTab === "live" && (
-          <div className="bg-slate-800/50 rounded-lg p-8 border border-slate-700 text-center">
-            <div className="text-4xl mb-2">🔴</div>
-            <div className="text-slate-300 font-semibold">Live Market Feed</div>
-            <div className="text-sm text-slate-500 mt-2">Connect MT5 via ZeroMQ to stream live ticks.</div>
-            <div className="text-xs text-slate-600 mt-1">Port: 15555 (PULL) / 15556 (SUB)</div>
-          </div>
-        )}
+        {activeTab === "live" && <LivePanel />}
         {activeTab === "ai" && <AIInsightPanel />}
       </main>
     </div>

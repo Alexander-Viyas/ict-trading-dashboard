@@ -171,6 +171,21 @@ export async function generateAIInsight(entries: JournalEntry[], question?: stri
   return res.data;
 }
 
+export async function runMtfAnalysis(params: BacktestParams): Promise<any> {
+  const res = await api.post('/backtest/mtf', params);
+  return res.data;
+}
+
+export async function getLiveStatus(): Promise<any> {
+  const res = await api.get('/live/status');
+  return res.data;
+}
+
+export async function connectMt5(): Promise<any> {
+  const res = await api.post('/live/mt5/connect');
+  return res.data;
+}
+
 export async function getAIHealth(): Promise<{ status: string; model?: string }> {
   const res = await api.get('/ai/health');
   return res.data;

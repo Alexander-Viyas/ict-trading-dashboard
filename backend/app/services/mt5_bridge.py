@@ -1,14 +1,64 @@
 import json
 import asyncio
+import pandas as pd
 import zmq.asyncio
-from datetime import datetime
-from typing import Callable, Optional, Dict, Any
+from datetime import datetime, timedelta
+from typing import Callable, Optional, Dict, Any, List
+from collections import deque
 from app.config import MT5_HOST, MT5_PULL_PORT, MT5_SUB_PORT
 from app.models.schemas import TickData
+from app.services.pattern_engine import PatternEngine
+from app.services.ws_manager import ws_manager
+
+
+class CandleBuffer:
+    """Buffer ticks into M1/M5 candles for live pattern detection."""
+    def __init__(self, timeframe: str = "M5", max_candles: int = 200):
+        self.timeframe = timeframe
+        self.max_candles = max_candles
+        self.candles: deque = deque(maxlen=max_candles)
+        self.current_candle: Optional[Dict] = None
+        self._tf_seconds = {"M1": 60, "M5": 300, "M15": 900, "H1": 3600}.get(timeframe, 300)
+
+    def add_tick(self, tick: TickData):
+        ts = tick.time.replace(second=0, microsecond=0)
+        # Align to timeframe boundary
+        epoch = int(ts.timestamp())
+        aligned_epoch = (epoch // self._tf_seconds) * self._tf_seconds
+        aligned_time = datetime.utcfromtimestamp(aligned_epoch)
+
+        if self.current_candle is None or aligned_time > self.current_candle["time"]:
+            if self.current_candle:
+                self.candles.append(self.current_candle)
+            self.current_candle = {
+                "time": aligned_time,
+                "open": tick.bid,
+                "high": tick.bid,
+                "low": tick.bid,
+                "close": tick.bid,
+                "volume": tick.volume,
+            }
+        else:
+            self.current_candle["high"] = max(self.current_candle["high"], tick.bid)
+            self.current_candle["low"] = min(self.current_candle["low"], tick.bid)
+            self.current_candle["close"] = tick.bid
+            self.current_candle["volume"] += tick.volume
+
+    def to_dataframe(self) -> pd.DataFrame:
+        data = list(self.candles)
+        if self.current_candle:
+            data.append(self.current_candle)
+        df = pd.DataFrame(data)
+        if not df.empty:
+            df = df.sort_values("time").reset_index(drop=True)
+        return df
+
+    def __len__(self):
+        return len(self.candles) + (1 if self.current_candle else 0)
 
 
 class MT5Bridge:
-    """Async ZeroMQ bridge to MT5 via DWX ZeroMQ Connector pattern."""
+    """Async ZeroMQ bridge to MT5 with live pattern detection."""
 
     def __init__(self):
         self.ctx = zmq.asyncio.Context()
@@ -17,6 +67,17 @@ class MT5Bridge:
         self.connected = False
         self._running = False
         self._tick_callbacks: list[Callable[[TickData], None]] = []
+        self._candle_buffers: Dict[str, CandleBuffer] = {}
+        self._last_scan = datetime.utcnow()
+        self._scan_interval = 5  # seconds between pattern scans
+        self._symbol = "EURUSD"
+        self._timeframe = "M5"
+
+    def get_or_create_buffer(self, symbol: str, timeframe: str = "M5") -> CandleBuffer:
+        key = f"{symbol}_{timeframe}"
+        if key not in self._candle_buffers:
+            self._candle_buffers[key] = CandleBuffer(timeframe)
+        return self._candle_buffers[key]
 
     async def connect(self):
         self.pull_socket = self.ctx.socket(zmq.PULL)
@@ -29,6 +90,7 @@ class MT5Bridge:
         self.connected = True
         self._running = True
         asyncio.create_task(self._receive_loop())
+        asyncio.create_task(self._pattern_scan_loop())
 
     def on_tick(self, callback: Callable[[TickData], None]):
         self._tick_callbacks.append(callback)
@@ -41,6 +103,9 @@ class MT5Bridge:
                     data = json.loads(raw)
                     tick = self._parse_tick(data)
                     if tick:
+                        # Buffer into candles
+                        buf = self.get_or_create_buffer(tick.symbol, self._timeframe)
+                        buf.add_tick(tick)
                         for cb in self._tick_callbacks:
                             try:
                                 cb(tick)
@@ -52,8 +117,47 @@ class MT5Bridge:
                 print(f"MT5 receive error: {e}")
                 await asyncio.sleep(1)
 
+    async def _pattern_scan_loop(self):
+        """Periodically scan candle buffers for patterns and broadcast alerts."""
+        while self._running:
+            await asyncio.sleep(self._scan_interval)
+            for key, buf in self._candle_buffers.items():
+                if len(buf) < 20:
+                    continue
+                try:
+                    df = buf.to_dataframe()
+                    engine = PatternEngine(df, symbol=self._symbol, timeframe=self._timeframe)
+                    patterns = engine.detect_all()
+                    # Only alert on high-confidence patterns
+                    for pat in patterns:
+                        if pat.confidence >= 65 and self._is_fresh_alert(pat):
+                            alert = {
+                                "type": "pattern_alert",
+                                "symbol": pat.symbol,
+                                "timeframe": pat.timeframe,
+                                "pattern_type": pat.pattern_type,
+                                "direction": pat.direction,
+                                "confidence": pat.confidence,
+                                "price_entry": pat.price_entry,
+                                "price_sl": pat.price_sl,
+                                "price_tp": pat.price_tp,
+                                "time": pat.time.isoformat() if pat.time else None,
+                                "notes": pat.notes,
+                                "candle_count": len(buf),
+                            }
+                            await ws_manager.broadcast(alert)
+                            print(f"[LIVE ALERT] {pat.pattern_type} {pat.direction} {pat.confidence}% @ {pat.price_entry}")
+                except Exception as e:
+                    print(f"Pattern scan error for {key}: {e}")
+
+    def _is_fresh_alert(self, pattern) -> bool:
+        """Prevent duplicate alerts for same pattern within 60s."""
+        # Simple dedup: pattern type + direction + rough price
+        return True  # TODO: implement proper dedup cache
+
     def _parse_tick(self, data: Dict[str, Any]) -> Optional[TickData]:
         try:
+            # Handle both DWX format and simple format
             return TickData(
                 symbol=data.get("_symbol", data.get("symbol", "UNKNOWN")),
                 bid=float(data.get("_bid", data.get("bid", 0))),
@@ -65,7 +169,6 @@ class MT5Bridge:
             return None
 
     async def request_historical(self, symbol: str, timeframe: str, start: str, end: str):
-        """Request historical data from MT5 EA via PUSH/PULL."""
         req = {
             "_action": "HISTORY",
             "_symbol": symbol,
