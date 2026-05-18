@@ -89,7 +89,11 @@ export interface ReplayEvent {
 }
 
 export async function runBacktest(params: BacktestParams): Promise<BacktestResult> {
-  const res = await api.post('/backtest/run', params);
+  // Clean up empty strings to null
+  const cleanParams = { ...params };
+  if (!cleanParams.start_date) delete (cleanParams as any).start_date;
+  if (!cleanParams.end_date) delete (cleanParams as any).end_date;
+  const res = await api.post('/backtest/run', cleanParams);
   return res.data;
 }
 
@@ -172,7 +176,11 @@ export async function generateAIInsight(entries: JournalEntry[], question?: stri
 }
 
 export async function runMtfAnalysis(params: BacktestParams): Promise<any> {
-  const res = await api.post('/backtest/mtf', params);
+  // Clean up empty strings to null
+  const cleanParams = { ...params };
+  if (!cleanParams.start_date) delete (cleanParams as any).start_date;
+  if (!cleanParams.end_date) delete (cleanParams as any).end_date;
+  const res = await api.post('/backtest/mtf', cleanParams);
   return res.data;
 }
 
